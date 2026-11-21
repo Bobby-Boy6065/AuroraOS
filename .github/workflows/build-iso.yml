@@ -1,0 +1,45 @@
+name: Build Aurora OS ISO
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build-iso:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout Aurora OS
+        uses: actions/checkout@v4
+
+      - name: Install ISO build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y live-build debootstrap xorriso squashfs-tools grub-efi-amd64-bin grub-pc-bin mtools dosfstools rsync
+
+      - name: Build bootable ISO
+        run: |
+          chmod +x scripts/*.sh
+          sudo ./scripts/build-iso.sh
+
+      - name: Locate ISO and verify it exists
+        run: |
+          ISO=$(find . -type f -name '*.iso' -size +100M -print -quit)
+          if [ -z "$ISO" ]; then
+            echo 'ISO not found or is unexpectedly small; build did not produce a usable image.' >&2
+            exit 1
+          fi
+          echo "ISO_PATH=$ISO" >> "$GITHUB_ENV"
+          ls -lh "$ISO"
+
+      - name: Upload ISO artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aurora-OS-Surface-Pro-3-ISO
+          path: ${{ env.ISO_PATH }}
+          if-no-files-found: error
+          retention-days: 14
